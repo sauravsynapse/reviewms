@@ -1,5 +1,6 @@
 package com.jobex.reviewms.reviews;
 
+import com.jobex.reviewms.reviews.messaging.ReviewMessageProducer;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,9 +12,10 @@ import java.util.List;
 public class ReviewController {
 
     private ReviewService reviewService;
-
-    public ReviewController(ReviewService reviewService) {
+    private ReviewMessageProducer reviewMessageProducer;
+    public ReviewController(ReviewService reviewService, ReviewMessageProducer reviewMessageProducer) {
         this.reviewService = reviewService;
+        this.reviewMessageProducer=reviewMessageProducer;
     }
 
     @GetMapping
@@ -31,8 +33,10 @@ public class ReviewController {
     @PostMapping
     public ResponseEntity<String> createReview(@RequestBody Review review, @RequestParam Long companyId)
     {
-        if(reviewService.createReview(review,companyId))
-            return new ResponseEntity("Review Created Successfully",HttpStatus.CREATED);
+        if(reviewService.createReview(review,companyId)) {
+            reviewMessageProducer.sendMessage(review);
+            return new ResponseEntity("Review Created Successfully", HttpStatus.CREATED);
+        }
         else
             return new ResponseEntity("Review not saved", HttpStatus.NOT_FOUND);
     }
@@ -64,5 +68,10 @@ public class ReviewController {
             return new ResponseEntity("Review Deleted Successfully",HttpStatus.OK);
         return new ResponseEntity("Review not found", HttpStatus.NOT_FOUND);
     }
-    
+
+    @GetMapping("/averageRating")
+    public Double getAverageReview(@RequestParam Long companyId){
+        List<Review> reviewList = reviewService.findAllByCompanyId(companyId);
+        return reviewList.stream().mapToDouble(Review::getRating).average().orElse(0.0);
+    }
 }
